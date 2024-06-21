@@ -3,7 +3,7 @@
 This repository provides an example of integrating YOLOv8 DLL for object detection using C++. It demonstrates how to configure and use the YOLOv8 SDK for real-time object detection tasks.
 
 ## Requirements
-
+- Windows 64-bit operating system
 - C++ Compiler
 - Conan Package Manager
 - CMake 3.15 or higher
