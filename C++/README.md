@@ -1,64 +1,36 @@
-# YOLOv8 Object Detection SDK
+# C++ native integration
 
-This repository provides an example of integrating YOLOv8 DLL for object detection using C++. It demonstrates how to configure and use the YOLOv8 SDK for real-time object detection tasks.
+This example loads the YOLOv8 SDK dynamically with the Windows API. It resolves the exported symbols, configures an ONNX model, passes encoded image bytes to the SDK, reads detection structures, and renders the returned boxes with OpenCV.
 
 ## Requirements
-- Windows 64-bit operating system
-- C++ Compiler
-- Conan Package Manager
-- CMake 3.15 or higher
+
+- Windows x64
+- C++14 compiler
+- CMake 3.15 or newer
+- Conan
 - OpenCV 4.8.1
 - OpenVINO 2023.1.0
 
-## Installation
+## Configure and build
 
-1. **Install Dependencies with Conan:**
+```powershell
+mkdir build
+cd build
+conan install .. --install-folder=.
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
 
-   Ensure Conan is installed and configured.
+The CMake configuration copies the DLL files from the repository's `DLL` directory beside the example executable after a successful build.
 
-   ```bash
-   mkdir build && cd build
-   conan install .. --install-folder=.
-   ```
+## Run
 
-   This command installs the required dependencies (`opencv`, `openvino`) and generates the necessary `CMake` configuration files in the `build` directory.
+Run `yolov8_example.exe` from the generated output directory. The example uses `Models/yolov8n.onnx` and `TestImages/bus.jpg`, prints each detection, and opens an OpenCV window with the predicted boxes.
 
-## Building the Project
+## Integration notes
 
-1. **Configure with CMake:**
-
-   ```bash
-   cmake .. -DCMAKE_BUILD_TYPE=Release
-   ```
-
-   This command configures the project with CMake for Release mode.
-
-2. **Build the Project:**
-
-   ```bash
-   cmake --build . --config Release
-   ```
-
-   This command builds the project in `Release` mode, linking with the dependencies installed by Conan (`opencv`, `openvino`).
-
-## Running the Application
-
-1. **Execute the Application:**
-
-   After building successfully, you can run the executable:
-
-   ```bash
-   cd bin
-   ./yolov8_example.exe
-   ```
-
-   This runs the YOLOv8 object detection on the provided image (`bus.jpg`) located in the `TestImages` directory.
-
-2. **Viewing Results:**
-
-   The application will display the detected objects overlaid on the input image using OpenCV's graphical interface.
-
-## Troubleshooting
-
-- **DLL Loading Issues:**
-  If encountering "Unable to load YOLOv8_SDK.dll" errors, ensure the DLL is located correctly in relation to the executable or specify the full path.
+- Check every symbol returned by `GetProcAddress` before calling the SDK.
+- Keep the application, SDK, runtime dependencies, and model architecture compatible with Windows x64.
+- Match the exported calling convention and structure layout exactly.
+- Release the inference handle before calling `FreeLibrary`.
+- The current SDK interface returns detections through a caller-provided array without a capacity argument. Confirm the maximum-result contract before using the pattern with another model or workload.

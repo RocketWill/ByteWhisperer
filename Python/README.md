@@ -1,45 +1,42 @@
-# YOLOv8 Object Detection SDK
+# Python `ctypes` integration
 
-This repository provides an example of integrating YOLOv8 DLL for object detection using Python ctypes. It demonstrates how to configure and use the YOLOv8 SDK for real-time object detection tasks.
+This example maps the native YOLOv8 SDK interface into Python with `ctypes`. It defines compatible configuration and detection structures, assigns explicit function signatures, transfers encoded image bytes, and converts the native result buffer into Python-readable values.
 
 ## Requirements
 
-- Python 3.x
-- Windows operating system (for DLL usage)
+- Windows x64
+- Python 3
+- `YOLOv8_SDK.dll` and its runtime dependencies in `../DLL`
+- A compatible YOLOv8 ONNX model
 
-## Installation
+Install the only third-party Python dependency:
 
-2. Install dependencies:
+```powershell
+pip install -r requirements.txt
+```
 
-   ```
-   pip install -r requirements.txt
-   ```
+`ctypes` is part of the Python standard library. Pillow is used only to read the original image dimensions passed to the SDK.
 
-## Usage
+## Run
 
-1. Set up the configuration in `example.py`:
+From the repository root:
 
-   ```python
-   # Configure YOLOv8
-   config = Config(
-       confThreshold=0.5,
-       nmsThreshold=0.4,
-       scoreThreshold=0.3,
-       inpWidth=640,
-       inpHeight=640,
-       onnx_path=os.path.join(parent_dir, "Models/yolov8n.onnx").encode()
-   )
-   ```
+```powershell
+python Python\example.py
+```
 
-2. Run the main script to perform object detection:
+The default model and image are `Models/yolov8n.onnx` and `TestImages/bus.jpg`. Both paths can be overridden:
 
-   ```
-   python example.py
-   ```
+```powershell
+python Python\example.py path\to\model.onnx path\to\image.jpg
+```
 
-## Structure
+The script prints the class ID, confidence value, and bounding box returned for each detection.
 
-- `example.py`: Main script demonstrating YOLOv8 DLL integration and object detection.
-- `DLL/`: Directory containing YOLOv8 SDK DLL files.
-- `Models/`: Directory for storing ONNX model files.
-- `TestImages/`: Directory containing sample images for testing.
+## Integration notes
+
+- Keep each `_fields_` declaration aligned with the native structure order and field width.
+- Set both `argtypes` and `restype`; relying on `ctypes` defaults can truncate pointers on a 64-bit process.
+- Build and run Python with the same x64 architecture as the native DLL.
+- Always call `DestroyYOLOV8` for a successfully created handle.
+- The current SDK interface uses a fixed result buffer in the example. Review the capacity contract before adapting it to unbounded inputs.

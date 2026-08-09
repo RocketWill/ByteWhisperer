@@ -84,6 +84,25 @@ class Program
 
     static void Main(string[] args)
     {
+        string repositoryRoot = Path.GetFullPath(
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..")
+        );
+        string modelPath = Path.GetFullPath(
+            args.Length > 0 ? args[0] : Path.Combine(repositoryRoot, @"Models\yolov8n.onnx")
+        );
+        string imagePath = Path.GetFullPath(
+            args.Length > 1 ? args[1] : Path.Combine(repositoryRoot, @"TestImages\bus.jpg")
+        );
+
+        if (!File.Exists(modelPath))
+        {
+            throw new FileNotFoundException("ONNX model not found.", modelPath);
+        }
+        if (!File.Exists(imagePath))
+        {
+            throw new FileNotFoundException("Input image not found.", imagePath);
+        }
+
         // Configure YOLOv8 parameters
         // 配置 YOLOv8 參數
         Config config = new Config
@@ -98,47 +117,52 @@ class Program
                                    // 設置輸入寬度
             inpHeight = 640,       // Set input height
                                    // 設置輸入高度
-            onnx_path = @"D:\workspace\ByteWhisperer\Models\yolov8n.onnx" // Set ONNX model path
-                                                                         // 設置 ONNX 模型路徑
+            onnx_path = modelPath // Set ONNX model path
+                                  // 設置 ONNX 模型路徑
         };
 
         // Create YOLOv8 object
         // 創建 YOLOv8 對象
         IntPtr yolov8 = CreateYOLOV8(config);
+        if (yolov8 == IntPtr.Zero)
+        {
+            throw new InvalidOperationException("YOLOv8 SDK failed to create an inference instance.");
+        }
 
-        // Read image and convert to byte array
-        // 讀取圖像並轉換為字節數組
-        Bitmap bitmap = new Bitmap(@"D:\workspace\ByteWhisperer\TestImages\bus.jpg");
-        byte[] imageData = BitmapToByteArray(bitmap);
-
-        // Allocate unmanaged memory and copy image data
-        // 分配非托管內存並複製圖像數據
-        IntPtr unmanagedImageData = Marshal.AllocHGlobal(imageData.Length);
-        Marshal.Copy(imageData, 0, unmanagedImageData, imageData.Length);
-
-        // Call YOLOv8 detection
-        // 調用 YOLOv8 檢測
-        DetectYOLOV8(yolov8, unmanagedImageData, imageData.Length, bitmap.Width, bitmap.Height);
-
-        // Get detection results
-        // 獲取檢測結果
-        int maxNumDetections = 100; // Maximum number of detections
-                                    // 最大檢測數量
-        int realNumDetection = 0;   // Actual number of detections
-                                    // 實際檢測數量
-
-        Detection[] detections = new Detection[maxNumDetections]; // Create array to hold detections
-                                                                  // 創建數組以保存檢測結果
-        IntPtr unmanagedDetections = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(Detection)) * maxNumDetections); // Allocate unmanaged memory for detections
-                                                                                                                 // 分配非托管內存以保存檢測結果
+        IntPtr unmanagedImageData = IntPtr.Zero;
+        IntPtr unmanagedDetections = IntPtr.Zero;
         try
         {
+            // Read image and convert to byte array
+            // 讀取圖像並轉換為字節數組
+            using (Bitmap bitmap = new Bitmap(imagePath))
+            {
+                byte[] imageData = BitmapToByteArray(bitmap);
+                unmanagedImageData = Marshal.AllocHGlobal(imageData.Length);
+                Marshal.Copy(imageData, 0, unmanagedImageData, imageData.Length);
+
+                // Call YOLOv8 detection
+                // 調用 YOLOv8 檢測
+                DetectYOLOV8(yolov8, unmanagedImageData, imageData.Length, bitmap.Width, bitmap.Height);
+            }
+
+            int maxNumDetections = 100;
+            int realNumDetection = 0;
+            Detection[] detections = new Detection[maxNumDetections];
+            unmanagedDetections = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(Detection)) * maxNumDetections);
+
             GetDetectionsYOLOV8(yolov8, unmanagedDetections, ref realNumDetection); // Get detections from YOLOv8
                                                                                     // 從 YOLOv8 獲取檢測結果
+            if (realNumDetection < 0 || realNumDetection > maxNumDetections)
+            {
+                throw new InvalidOperationException(
+                    $"SDK returned an invalid detection count: {realNumDetection}"
+                );
+            }
 
             // Copy detection results from unmanaged memory to managed array
             // 將檢測結果從非托管內存複製到托管數組
-            for (int i = 0; i < maxNumDetections; i++)
+            for (int i = 0; i < realNumDetection; i++)
             {
                 IntPtr detectionPtr = new IntPtr(unmanagedDetections.ToInt64() + i * Marshal.SizeOf(typeof(Detection))); // Calculate pointer to each detection
                                                                                                                          // 計算每個檢測結果的指針
@@ -156,17 +180,15 @@ class Program
         }
         finally
         {
-            // Free unmanaged memory
-            // 釋放非托管內存
-            Marshal.FreeHGlobal(unmanagedDetections);
+            if (unmanagedDetections != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(unmanagedDetections);
+            }
+            if (unmanagedImageData != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(unmanagedImageData);
+            }
+            DestroyYOLOV8(yolov8);
         }
-
-        // Free unmanaged memory
-        // 釋放非托管內存
-        Marshal.FreeHGlobal(unmanagedImageData);
-
-        // Destroy YOLOv8 object
-        // 銷毀 YOLOv8 對象
-        DestroyYOLOV8(yolov8);
     }
 }

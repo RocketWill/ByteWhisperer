@@ -1,44 +1,33 @@
-# YOLOv8 Object Detection SDK
+# C# P/Invoke integration
 
-This readme provides instructions on setting up and running a C# demo application using the YOLOv8 DLL for object detection.
+This example calls the native YOLOv8 SDK from .NET Framework through P/Invoke. It covers sequential structure layout, native function declarations, encoded image transfer, unmanaged result buffers, and cleanup.
 
 ## Requirements
 
-1. **Environment Setup**
-   - Ensure your environment meets the following requirements:
-     ```xml
-     <?xml version="1.0" encoding="utf-8"?>
-     <packages>
-       <package id="System.Drawing.Common" version="8.0.6" targetFramework="net472" />
-       <package id="System.Drawing.Primitives" version="4.3.0" targetFramework="net472" />
-     </packages>
-     ```
-   - Your project must target .NET Framework 4.7.2 and must be compiled for **x64 Release** mode.
+- Windows x64
+- Visual Studio with .NET Framework 4.7.2 support
+- Release/x64 build configuration
+- `YOLOv8_SDK.dll` and its runtime dependencies beside the executable or on the Windows DLL search path
+- A compatible YOLOv8 ONNX model
 
-2. **YOLOv8 SDK and Dependencies**
-   - Obtain the YOLOv8 SDK DLL (`YOLOv8_SDK.dll`) and any other necessary DLLs required for object detection. Place these DLL files in the same directory as your application's executable (`exe`).
+## Build and run
 
-## Configuration
+1. Open `CSharp.sln` in Visual Studio.
+2. Restore NuGet packages.
+3. Select **Release** and **x64**.
+4. Build and run the application.
 
-### Model Setup
-- **ONNX Model**: 
-  - Ensure you have an ONNX model file prepared for YOLOv8. Update the `onnx_path` parameter in the `Config` struct (`Config.onnx_path`) to reflect the path to your specific ONNX model file.
+The executable resolves the repository's sample model and image by default. Optional paths can be passed on the command line:
 
-### Config Struct
+```powershell
+CSharp.exe path\to\model.onnx path\to\image.jpg
+```
 
-The `Config` struct is used to configure YOLOv8 parameters:
-- `confThreshold`: Detection confidence threshold
-- `nmsThreshold`: Non-maximum suppression threshold
-- `scoreThreshold`: Score threshold
-- `inpWidth`: Input image width
-- `inpHeight`: Input image height
-- `onnx_path`: Path to the ONNX model file
+## Integration notes
 
-Modify these parameters according to your model's requirements.
-
-## Notes
-
-- Ensure that all relevant DLL files (`YOLOv8_SDK.dll` and others) are placed in the same directory as your application's executable (`exe`).
-- Verify that the paths (`onnx_path`, image paths) specified in the configuration match your actual file locations.
-- Customize parameters and handle exceptions according to your application's requirements.
-- Ensure proper management of unmanaged resources (`IntPtr`, memory allocations) to prevent memory leaks. 
+- `[StructLayout(LayoutKind.Sequential)]` must match the field order and widths used by the native SDK.
+- `CallingConvention.Cdecl` must remain consistent with the exported functions.
+- Use an x64 process. Loading an x64 DLL from an AnyCPU or x86 process will fail.
+- Release buffers allocated with `Marshal.AllocHGlobal`, even when native calls fail.
+- Destroy every successfully created SDK handle.
+- The current result interface does not accept a destination-buffer capacity. Treat the fixed 100-element allocation as part of this example's SDK contract, not a general safety guarantee.

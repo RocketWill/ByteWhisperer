@@ -1,45 +1,168 @@
 # ByteWhisperer
 
-ByteWhisperer is a multi-language example repository demonstrating how to use C++, Python, and C# to invoke YOLOv8 DLL for object detection. This repository does not contain any deep learning-related code, focusing instead on showcasing how to utilize dynamic-link libraries (DLLs) to achieve real-time object detection tasks across different programming languages and platforms.
+ByteWhisperer is a cross-language integration reference for running YOLOv8 object detection through a native Windows SDK. It shows how the same C-style DLL interface can be consumed from C++, Python, and C# without moving model inference into each application layer.
 
-## Key Features
+The repository focuses on the boundary around inference: loading a native library, mapping configuration and detection structures, passing encoded image data, retrieving results, and releasing unmanaged resources. Model training is outside its scope.
 
-- **C++ and Visual Studio**: Demonstrates how to compile and invoke YOLOv8 DLL.
-- **Python and OpenCV**: Shows how to use Python to invoke YOLOv8 DLL for image processing and detection.
-- **C# and .NET Framework**: Illustrates how to call YOLOv8 DLL using C# in a Windows environment.
+![ByteWhisperer cross-language inference architecture](docs/architecture.svg)
 
-## Installation Guide
+## Why this repository exists
 
-### 1. Environment Setup
+Exporting a model to ONNX is only one part of deployment. A desktop or industrial application still needs a stable way to load the runtime, pass data across language boundaries, and turn native outputs into structures the host language can safely use.
 
-- **C++**:
-  - Install a C++ compiler and Visual Studio.
-  - Use CMake to compile the project.
+ByteWhisperer keeps that integration path visible. The three examples use different interop mechanisms, but they follow the same lifecycle:
 
-- **Python**:
-  - Install Python 3.x.
-  - Install the required dependencies using `requirements.txt`:
-    ```
-    pip install -r requirements.txt
-    ```
+1. Define structures compatible with the native interface.
+2. Load `YOLOv8_SDK.dll` and resolve its exported functions.
+3. Create an inference instance from an ONNX model configuration.
+4. Pass encoded image bytes to the SDK.
+5. Copy class IDs, confidence scores, and bounding boxes back to the caller.
+6. Release native objects, buffers, and the loaded library.
 
-- **C#**:
-  - Install .NET Framework 4.7.2 or higher.
-  - Ensure the project is set to **x64 Release** mode for compilation.
+## Language bindings
 
-### 2. Configure YOLOv8
+| Language | Interop mechanism | What the example demonstrates |
+| --- | --- | --- |
+| C++ | `LoadLibrary` and `GetProcAddress` | Explicit symbol loading, native structures, OpenCV visualization, and DLL lifetime management |
+| Python | `ctypes` | Structure mapping, function signatures, byte-buffer transfer, and result decoding |
+| C# | P/Invoke and marshaling | Managed/unmanaged structure mapping, buffer allocation, result copying, and deterministic cleanup |
 
-- **Model File**:
-  - Place the YOLOv8 model weights file (`yolov8n.onnx`) in the `Models` directory.
-  - Modify the model path parameter in the code to point to the correct model file path.
+All three examples call the same exported API:
 
-- **DLL File**:
-  - Ensure that all necessary DLL files, including YOLOv8.dll, are placed in the DLL directory.
+```text
+CreateYOLOV8 -> DetectYOLOV8 -> GetDetectionsYOLOV8 -> DestroyYOLOV8
+```
 
-## Usage Instructions
+## Runtime stack
 
-Each language's example code folder contains a corresponding `README.md` file with detailed instructions. Here are the basic usage steps:
+| Layer | Current implementation |
+| --- | --- |
+| Operating system | Windows x64 |
+| Model format | YOLOv8 ONNX |
+| Inference runtime | OpenVINO 2023.1.0 |
+| Native SDK | `YOLOv8_SDK.dll` with a C-style exported interface |
+| C++ example | C++14, CMake 3.15+, Conan, OpenCV 4.8.1 |
+| Python example | Python 3, `ctypes`, Pillow |
+| C# example | .NET Framework 4.7.2, x64 |
 
-1. **Compile and Run**:
-   - Follow the instructions for the respective language to compile and run the example code.
-   - Ensure all dependencies and configuration files are correctly set up.
+The repository contains the runtime DLLs and a sample ONNX model used by the examples. It is not a cross-platform package, a general-purpose model server, or a training framework.
+
+## Quick start
+
+### Repository layout
+
+```text
+ByteWhisperer/
+├── C++/          # LoadLibrary-based native integration example
+├── Python/       # ctypes binding example
+├── CSharp/       # .NET Framework P/Invoke example
+├── DLL/          # Native SDK and runtime dependencies
+├── Models/       # ONNX model used by the examples
+├── TestImages/   # Public test input
+└── docs/         # Architecture and documentation assets
+```
+
+### C++
+
+The C++ example uses Conan to resolve OpenCV and OpenVINO development dependencies, then copies the required runtime DLLs next to the executable.
+
+```powershell
+cd C++
+mkdir build
+cd build
+conan install .. --install-folder=.
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
+
+See [`C++/README.md`](C++/README.md) for the expected environment and runtime layout.
+
+### Python
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r Python\requirements.txt
+python Python\example.py
+```
+
+Optional model and image paths can be supplied explicitly:
+
+```powershell
+python Python\example.py Models\yolov8n.onnx TestImages\bus.jpg
+```
+
+### C#
+
+Open `CSharp/CSharp.sln` in Visual Studio, select **Release** and **x64**, restore NuGet packages, and build the solution. The example uses repository-relative defaults and also accepts optional model and image paths:
+
+```powershell
+CSharp.exe Models\yolov8n.onnx TestImages\bus.jpg
+```
+
+The native SDK and its dependencies must be available beside the executable or on the Windows DLL search path.
+
+## Native interface
+
+The integration contract consists of two structures and four exported functions. `Config` carries thresholds, input dimensions, and the model path. `Detection` returns a class ID, confidence value, and bounding box.
+
+```cpp
+extern "C" {
+    YOLOV8_API void* CreateYOLOV8(Config config);
+    YOLOV8_API void DestroyYOLOV8(void* yolov8);
+    YOLOV8_API void DetectYOLOV8(
+        void* yolov8,
+        unsigned char* image_data,
+        int data_length,
+        int width,
+        int height
+    );
+    YOLOV8_API void GetDetectionsYOLOV8(
+        void* yolov8,
+        Detection* detections,
+        int* num_detections
+    );
+}
+```
+
+This narrow API keeps the host-language examples comparable. It also exposes the part that requires the most care: structure layout, calling convention, buffer capacity, path encoding, and ownership must remain consistent with the compiled SDK.
+
+## Detection flow
+
+```mermaid
+sequenceDiagram
+    participant App as Host application
+    participant Binding as Language binding
+    participant SDK as YOLOv8 SDK DLL
+    participant Runtime as OpenVINO runtime
+
+    App->>Binding: Model path and thresholds
+    Binding->>SDK: CreateYOLOV8(Config)
+    SDK->>Runtime: Load and compile ONNX model
+    App->>Binding: Encoded image bytes
+    Binding->>SDK: DetectYOLOV8(...)
+    SDK->>Runtime: Run inference
+    Runtime-->>SDK: Output tensor
+    SDK-->>Binding: Detection structures
+    Binding-->>App: Class, confidence, bounding box
+    Binding->>SDK: DestroyYOLOV8(handle)
+```
+
+## Current boundaries
+
+- The provided SDK and runtime binaries target Windows x64.
+- The repository demonstrates single-image object detection, not streaming, batching, or concurrent inference.
+- The native SDK implementation is distributed as a compiled DLL; this repository focuses on consumer-side integration.
+- The exported structures depend on a matching compiler, calling convention, architecture, and OpenCV-compatible layout.
+- The examples use a fixed maximum result buffer of 100 detections because the current interface does not expose a capacity argument.
+- Error reporting is limited by the exported API. Applications that adopt the pattern should add explicit status codes, version checks, and structured diagnostics.
+
+These constraints are documented because they affect whether the examples remain safe when adapted to another application.
+
+## Relationship with PoseidonAI
+
+ByteWhisperer documents the application-integration side of the broader [PoseidonAI](https://github.com/RocketWill/PoseidonAI-Server) workflow. PoseidonAI manages datasets, training, evaluation, visualization, and model export; ByteWhisperer shows how an exported ONNX model can be consumed from native and managed Windows applications.
+
+## Third-party components and licensing
+
+This repository currently has no project-level open-source license. The included OpenVINO, OpenCV, TBB, model, and test assets remain subject to their respective upstream terms. Review those terms before redistributing the binaries or using the repository outside an evaluation environment.
