@@ -26,7 +26,7 @@ int main() {
     GetDetectionsYOLOV8_t GetDetectionsYOLOV8 = (GetDetectionsYOLOV8_t)GetProcAddress(hYOLOv8, "GetDetectionsYOLOV8");
 
     if (!CreateYOLOV8 || !DestroyYOLOV8 || !DetectYOLOV8 || !GetDetectionsYOLOV8) {
-        std::cerr << "Unable to load YOLOv8_SDK.dl" << std::endl;
+        std::cerr << "Unable to resolve one or more YOLOv8_SDK.dll symbols" << std::endl;
         FreeLibrary(hYOLOv8);
         return -1;
     }

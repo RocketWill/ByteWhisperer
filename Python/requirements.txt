@@ -1,1 +1,1 @@
-ctypes
+Pillow>=9.0,<12.0
