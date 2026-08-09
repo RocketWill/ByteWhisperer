@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title description">
   <title id="title">ByteWhisperer native inference interoperability architecture</title>
-  <desc id="description">C++, Python, and C# applications use language-specific adapters to call a native inference SDK. YOLOv8, ONNX, and OpenVINO are shown separately as the current reference implementation.</desc>
+  <desc id="description">C++, Python, and C# applications use language-specific adapters to call a native inference SDK. An ONNX model and OpenVINO runtime are shown separately as the current example.</desc>
   <defs>
     <style>
       .bg { fill: #f8fafc; }
@@ -60,7 +60,7 @@
   <text class="label" x="1007" y="204" text-anchor="middle">OpenVINO Runtime</text>
   <text class="detail" x="1007" y="228" text-anchor="middle">Windows x64 execution</text>
   <rect class="panel" x="890" y="278" width="235" height="82" rx="12"/>
-  <text class="label" x="1007" y="312" text-anchor="middle">YOLOv8 ONNX</text>
+  <text class="label" x="1007" y="312" text-anchor="middle">Example ONNX Model</text>
   <text class="detail" x="1007" y="336" text-anchor="middle">Example model artifact</text>
   <rect class="panel" x="890" y="386" width="235" height="58" rx="12"/>
   <text class="detail" x="1007" y="421" text-anchor="middle">Replaceable implementation</text>
