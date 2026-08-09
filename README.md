@@ -1,22 +1,22 @@
 # ByteWhisperer
 
-ByteWhisperer is a cross-language integration reference for running YOLOv8 object detection through a native Windows SDK. It shows how the same C-style DLL interface can be consumed from C++, Python, and C# without moving model inference into each application layer.
+ByteWhisperer is a cross-language reference for integrating native inference SDKs into C++, Python, and C# applications. It focuses on the interoperability layer around inference rather than a specific model family or training framework.
 
-The repository focuses on the boundary around inference: loading a native library, mapping configuration and detection structures, passing encoded image data, retrieving results, and releasing unmanaged resources. Model training is outside its scope.
+The current reference implementation uses YOLOv8, ONNX, and OpenVINO behind a Windows x64 DLL. They provide a concrete example for loading a native library, mapping data structures, passing encoded input, retrieving results, and releasing unmanaged resources. Model training is outside the repository's scope.
 
 ![ByteWhisperer cross-language inference architecture](docs/architecture.svg)
 
 ## Why this repository exists
 
-Exporting a model to ONNX is only one part of deployment. A desktop or industrial application still needs a stable way to load the runtime, pass data across language boundaries, and turn native outputs into structures the host language can safely use.
+Packaging an inference runtime is only one part of deployment. A desktop or industrial application still needs a stable way to load the SDK, pass data across language boundaries, and turn native outputs into structures the host language can safely use.
 
 ByteWhisperer keeps that integration path visible. The three examples use different interop mechanisms, but they follow the same lifecycle:
 
 1. Define structures compatible with the native interface.
-2. Load `YOLOv8_SDK.dll` and resolve its exported functions.
-3. Create an inference instance from an ONNX model configuration.
-4. Pass encoded image bytes to the SDK.
-5. Copy class IDs, confidence scores, and bounding boxes back to the caller.
+2. Load the SDK library and resolve its exported functions.
+3. Create an inference instance from a runtime configuration.
+4. Pass encoded input through the language boundary.
+5. Copy structured inference results back to the caller.
 6. Release native objects, buffers, and the loaded library.
 
 ## Language bindings
@@ -27,13 +27,13 @@ ByteWhisperer keeps that integration path visible. The three examples use differ
 | Python | `ctypes` | Structure mapping, function signatures, byte-buffer transfer, and result decoding |
 | C# | P/Invoke and marshaling | Managed/unmanaged structure mapping, buffer allocation, result copying, and deterministic cleanup |
 
-All three examples call the same exported API:
+The current YOLOv8 example exposes the same lifecycle to all three languages:
 
 ```text
 CreateYOLOV8 -> DetectYOLOV8 -> GetDetectionsYOLOV8 -> DestroyYOLOV8
 ```
 
-## Runtime stack
+## Current reference implementation
 
 | Layer | Current implementation |
 | --- | --- |
@@ -45,7 +45,7 @@ CreateYOLOV8 -> DetectYOLOV8 -> GetDetectionsYOLOV8 -> DestroyYOLOV8
 | Python example | Python 3, `ctypes`, Pillow |
 | C# example | .NET Framework 4.7.2, x64 |
 
-The repository contains the runtime DLLs and a sample ONNX model used by the examples. It is not a cross-platform package, a general-purpose model server, or a training framework.
+The repository contains the runtime DLLs and sample ONNX model used by this implementation. The integration pattern can be adapted to other native inference SDKs, though their structures, ownership rules, and error contracts will differ. ByteWhisperer is not a cross-platform package, a general-purpose model server, or a training framework.
 
 ## Quick start
 
@@ -102,9 +102,9 @@ CSharp.exe Models\yolov8n.onnx TestImages\bus.jpg
 
 The native SDK and its dependencies must be available beside the executable or on the Windows DLL search path.
 
-## Native interface
+## Current example interface
 
-The integration contract consists of two structures and four exported functions. `Config` carries thresholds, input dimensions, and the model path. `Detection` returns a class ID, confidence value, and bounding box.
+The included SDK contract consists of two structures and four exported functions. `Config` carries thresholds, input dimensions, and the model path. `Detection` returns a class ID, confidence value, and bounding box. These YOLOv8-specific names belong to the current example rather than the general ByteWhisperer concept.
 
 ```cpp
 extern "C" {
@@ -127,25 +127,25 @@ extern "C" {
 
 This narrow API keeps the host-language examples comparable. It also exposes the part that requires the most care: structure layout, calling convention, buffer capacity, path encoding, and ownership must remain consistent with the compiled SDK.
 
-## Detection flow
+## Integration flow
 
 ```mermaid
 sequenceDiagram
     participant App as Host application
     participant Binding as Language binding
-    participant SDK as YOLOv8 SDK DLL
-    participant Runtime as OpenVINO runtime
+    participant SDK as Native inference SDK
+    participant Runtime as Reference runtime
 
     App->>Binding: Model path and thresholds
-    Binding->>SDK: CreateYOLOV8(Config)
-    SDK->>Runtime: Load and compile ONNX model
-    App->>Binding: Encoded image bytes
-    Binding->>SDK: DetectYOLOV8(...)
+    Binding->>SDK: Create inference instance
+    SDK->>Runtime: Load model artifact
+    App->>Binding: Encoded input
+    Binding->>SDK: Submit inference request
     SDK->>Runtime: Run inference
     Runtime-->>SDK: Output tensor
-    SDK-->>Binding: Detection structures
-    Binding-->>App: Class, confidence, bounding box
-    Binding->>SDK: DestroyYOLOV8(handle)
+    SDK-->>Binding: Structured results
+    Binding-->>App: Host-language values
+    Binding->>SDK: Destroy inference instance
 ```
 
 ## Current boundaries
@@ -161,7 +161,7 @@ These constraints are documented because they affect whether the examples remain
 
 ## Relationship with PoseidonAI
 
-ByteWhisperer documents the application-integration side of the broader [PoseidonAI](https://github.com/RocketWill/PoseidonAI-Server) workflow. PoseidonAI manages datasets, training, evaluation, visualization, and model export; ByteWhisperer shows how an exported ONNX model can be consumed from native and managed Windows applications.
+ByteWhisperer documents the application-integration side of the broader [PoseidonAI](https://github.com/RocketWill/PoseidonAI-Server) workflow. PoseidonAI manages datasets, training, evaluation, visualization, and model export; ByteWhisperer examines how exported model artifacts can be integrated into native and managed applications. YOLOv8 with ONNX and OpenVINO is the current example, not a fixed project boundary.
 
 ## Third-party components and licensing
 
